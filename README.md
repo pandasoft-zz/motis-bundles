@@ -59,7 +59,8 @@ carried over.
 ## How a build goes
 
 [`build.sh`](build.sh) does the whole thing and runs identically on a laptop
-and in [the workflow](.github/workflows/build.yml):
+and in [the workflow](.github/workflows/build.yml), which calls its three
+phases as three steps of one job so the pipeline shows each on its own:
 
 1. **download** the variant's [`sources.txt`](variants/czech/sources.txt) into
    `work/<variant>/input/` and test every zip — a feed host in maintenance
@@ -101,7 +102,8 @@ The smoke test plans Brno → Praha by default. A variant elsewhere sets
 ## Running a build locally
 
 ```sh
-./build.sh czech                  # -> motis-bundles/czech:dev
+bash build.sh czech               # -> motis-bundles/czech:dev
+bash build.sh test czech          # one phase: download, build or test
 docker run --rm -p 8080:8080 motis-bundles/czech:dev
 ```
 

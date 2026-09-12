@@ -76,6 +76,7 @@ jobs:
       # ghcr.io/<owner>/motis-bundles/<variant>. Lower-cased in the shell
       # below: GHCR requires it and GitHub does not promise it.
       REGISTRY_IMAGE: ghcr.io/${{ github.repository }}/${{ matrix.variant }}
+      VARIANT: ${{ matrix.variant }}
     steps:
       - uses: actions/checkout@v7
 
@@ -104,15 +105,25 @@ jobs:
             echo "motis=$motis"
             echo "tag=$tag"
           } >> "$GITHUB_OUTPUT"
+          echo "BUNDLE=$image:$tag" >> "$GITHUB_ENV"
           echo "$image:$tag"
 
-      - name: Download, import, build, smoke-test
-        run: bash build.sh "${{ matrix.variant }}" "${{ steps.name.outputs.image }}:${{ steps.name.outputs.tag }}"
+      # Three steps of the same script, so the pipeline shows where the time
+      # went and which one failed. One job, not three: the image would have
+      # to leave the runner and come back between jobs.
+      - name: Download inputs
+        run: bash build.sh download "$VARIANT"
+
+      - name: Import and build
+        run: bash build.sh build "$VARIANT" "$BUNDLE"
+
+      - name: Smoke test
+        run: bash build.sh test "$VARIANT" "$BUNDLE"
 
       - name: Summary
         if: always()
         run: |
-          f="work/${{ matrix.variant }}/summary.md"
+          f="work/$VARIANT/summary.md"
           [ -f "$f" ] && cat "$f" >> "$GITHUB_STEP_SUMMARY" || true
           df -h / | tail -1 >> "$GITHUB_STEP_SUMMARY"
 
