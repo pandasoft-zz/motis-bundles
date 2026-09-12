@@ -1,0 +1,23 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "timezone": "Europe/Prague",
+  "dependencyDashboard": true,
+  "packageRules": [
+    {
+      "description": "MOTIS itself. The pull request IS the test: Build runs the full import and smoke test on the new version before anything merges, so a green check means the graph builds and serves on it. Patch and minor merge on their own; a major waits for a human to read the release notes.",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["ghcr.io/motis-project/motis"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "automerge": true,
+      "automergeType": "pr"
+    },
+    {
+      "description": "Actions: minor and patch merge on their own, for the same reason and with the same test.",
+      "matchManagers": ["github-actions"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "automerge": true,
+      "automergeType": "pr"
+    }
+  ]
+}

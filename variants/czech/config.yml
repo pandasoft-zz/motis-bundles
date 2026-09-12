@@ -1,0 +1,37 @@
+# MOTIS import configuration for the `czech` variant.
+#
+# This is the INPUT to `motis import`. The import copies it into the data
+# directory it produces, and `motis server` reads that copy — there is no way
+# to hand the server a different config, so what is decided here is decided
+# for the whole life of the bundle. Change it, commit, and the next build
+# produces a new image; nothing is configured at run time.
+#
+# Paths are relative to the import's working directory, which build.sh sets
+# to the variant's work directory with the downloads in `input/`. The names
+# come from sources.txt.
+
+server:
+  port: 8080
+
+osm: input/czech-republic.osm.pbf
+
+timetable:
+  datasets:
+    jmk:                          # IDS JMK — South Moravia (KORDIS)
+      path: input/jmk.gtfs.zip
+    pid:                          # PID — Prague and Central Bohemia (ROPID)
+      path: input/pid.gtfs.zip
+    czptt:                        # National rail timetable (CZPTT, via ggu.cz)
+      path: input/czptt.gtfs.zip
+    jdf:                          # National bus timetable (JDF → GTFS, via 0xaa55h/gtfs-processor)
+      path: input/jdf.gtfs.zip
+  # jmk (the native South Moravian feed) and jdf (national buses) describe the
+  # same trips in South Moravia. Without this every such trip surfaces twice,
+  # as two itineraries from two datasets. merge_dupes_inter_src collapses
+  # duplicates across datasets.
+  merge_dupes_inter_src: true
+
+street_routing: true
+osr_footpath: true
+geocoding: true
+reverse_geocoding: true

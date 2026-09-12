@@ -1,0 +1,139 @@
+# Builds every variant and pushes the bundles to GHCR.
+#
+# ── When ─────────────────────────────────────────────────────────────────────
+#
+#   schedule          Mondays 01:00 UTC. The feeds publish weekly; this runs
+#                     after they have and before the day starts. Cron here is
+#                     UTC and GitHub may start it late under load — both fine
+#                     for a weekly artifact.
+#   push to main      a changed config or MOTIS version is a changed bundle.
+#   pull_request      builds and smoke-tests, pushes NOTHING. The test that a
+#                     new MOTIS version can still build and serve this graph
+#                     runs before the bump merges, not after.
+#   workflow_dispatch by hand, for a re-run after a feed host was down.
+#
+# ── What it costs ────────────────────────────────────────────────────────────
+#
+# Public repository, so the minutes are free, and the standard runner is
+# 4 vCPU / 16 GB RAM / 14 GB SSD — more memory than the homelab node this
+# used to run on. The disk is the tight one: the OSM extract, the feeds, the
+# import's output and the image layer of that same output all exist at once.
+# The first step clears the runner of SDKs nobody here uses.
+#
+# ── Keeping it alive ─────────────────────────────────────────────────────────
+#
+# GitHub disables a scheduled workflow after 60 days without repository
+# activity. A repository whose only job is a cron is exactly the kind that
+# goes quiet. Two guards: Renovate opens (and automerges) bumps here, which
+# are commits, and the scheduled run re-enables itself through the API at
+# the end — the mechanism the keepalive actions rely on. If a Monday build
+# ever goes missing, check the Actions tab for a "disabled" banner first.
+
+name: Build
+
+on:
+  schedule:
+    - cron: '0 1 * * 1'
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE'
+  pull_request:
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE'
+  workflow_dispatch:
+
+# One build per ref at a time. A push landing mid-schedule waits rather than
+# racing the scheduled run to the same tag.
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+  actions: write     # the keepalive step re-enables this workflow
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    # A full import is ~40 minutes on a two-core homelab node; the runner is
+    # faster. Six hours is GitHub's ceiling for a job; this is well under it
+    # and still far above anything that is going right.
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      # One entry per directory under variants/. Adding a variant is adding a
+      # directory and a line here; the matrix is written out rather than
+      # discovered so that the list of what gets built is in the file that
+      # builds it.
+      matrix:
+        variant: [czech]
+    env:
+      # ghcr.io/<owner>/motis-bundles/<variant>. Lower-cased in the shell
+      # below: GHCR requires it and GitHub does not promise it.
+      REGISTRY_IMAGE: ghcr.io/${{ github.repository }}/${{ matrix.variant }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Free disk space
+        run: |
+          df -h / | tail -1
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+                      /usr/local/.ghcup /opt/hostedtoolcache/CodeQL \
+                      /usr/share/swift /usr/local/share/powershell \
+                      /usr/local/share/chromium /usr/local/lib/node_modules
+          docker system prune -af --volumes >/dev/null
+          df -h / | tail -1
+
+      - name: Name the bundle
+        id: name
+        run: |
+          image="${REGISTRY_IMAGE,,}"
+          motis=$(sed -n 's/^ARG MOTIS_VERSION=//p' Dockerfile)
+          # <motis>-<date>-<time>: what built it and when, sortable, and
+          # unique per run so a tag is never overwritten. The floating
+          # <motis> and latest tags are for humans and `docker run`; anything
+          # that deploys pins the full one.
+          tag="$motis-$(date -u +%Y%m%d-%H%M)"
+          {
+            echo "image=$image"
+            echo "motis=$motis"
+            echo "tag=$tag"
+          } >> "$GITHUB_OUTPUT"
+          echo "$image:$tag"
+
+      - name: Download, import, build, smoke-test
+        run: ./build.sh "${{ matrix.variant }}" "${{ steps.name.outputs.image }}:${{ steps.name.outputs.tag }}"
+
+      - name: Summary
+        if: always()
+        run: |
+          f="work/${{ matrix.variant }}/summary.md"
+          [ -f "$f" ] && cat "$f" >> "$GITHUB_STEP_SUMMARY" || true
+          df -h / | tail -1 >> "$GITHUB_STEP_SUMMARY"
+
+      # Only after the smoke test, and never from a pull request. The
+      # previous bundle stays current until a new one has proven itself.
+      - name: Push
+        if: github.event_name != 'pull_request'
+        env:
+          IMAGE: ${{ steps.name.outputs.image }}
+          TAG: ${{ steps.name.outputs.tag }}
+          MOTIS: ${{ steps.name.outputs.motis }}
+        run: |
+          echo "${{ github.token }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          docker tag "$IMAGE:$TAG" "$IMAGE:$MOTIS"
+          docker tag "$IMAGE:$TAG" "$IMAGE:latest"
+          docker push "$IMAGE:$TAG"
+          docker push "$IMAGE:$MOTIS"
+          docker push "$IMAGE:latest"
+          echo "pushed $IMAGE:$TAG (also :$MOTIS, :latest)" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Keep the schedule alive
+        if: github.event_name == 'schedule'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow enable build.yml --repo "$GITHUB_REPOSITORY"
