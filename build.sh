@@ -24,6 +24,11 @@ cd "$(dirname "$0")"
 export MSYS_NO_PATHCONV=1
 
 [ -d "variants/$VARIANT" ] || { echo "no such variant: variants/$VARIANT" >&2; exit 2; }
+# Checked first, not where they are used: jq is needed only by the smoke
+# test, and finding that out after the import is the wrong moment.
+for tool in docker curl jq; do
+  command -v "$tool" >/dev/null || { echo "$tool is required and not installed" >&2; exit 2; }
+done
 
 # The one place the version is stated — see the Dockerfile.
 MOTIS_VERSION=$(sed -n 's/^ARG MOTIS_VERSION=//p' Dockerfile)
