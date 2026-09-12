@@ -20,7 +20,7 @@ ARG MOTIS_VERSION=2.11.2
 # error` within seconds. A build stage writes to an ordinary container
 # filesystem everywhere, so the same file works on a laptop and on the Linux
 # runner — and BuildKit caches the stage, so a local re-run with unchanged
-# inputs skips the forty minutes.
+# inputs skips the import.
 FROM ghcr.io/motis-project/motis:${MOTIS_VERSION} AS import
 # Upstream sets USER motis; the import writes into the stage's filesystem, so
 # it runs as root here. The serving stage below inherits upstream's user.
@@ -30,11 +30,12 @@ WORKDIR /work
 COPY . .
 # The progress bars redraw one line per task per tick and would fill a CI log
 # with megabytes of carriage returns. `tr` turns them into lines and `grep`
-# drops those that start with the erase-line escape — everything else, task
-# lists and errors included, stays. pipefail so the import's own exit code is
-# the step's, not grep's.
+# drops those that carry the erase-line escape — everything else, task lists
+# and errors included, stays. pipefail so the import's own exit code is the
+# step's; grep's exit 1 means "every line filtered", which is not a failure.
 RUN set -o pipefail && \
-    /motis import -c config.yml -d data 2>&1 | tr '\r' '\n' | grep -vF "$(printf '\033[K')"
+    /motis import -c config.yml -d data 2>&1 | tr '\r' '\n' \
+      | { grep -vF "$(printf '\033[K')" || [ $? -eq 1 ]; }
 
 # ── 2. Bundle ────────────────────────────────────────────────────────────────
 FROM ghcr.io/motis-project/motis:${MOTIS_VERSION}

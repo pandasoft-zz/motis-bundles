@@ -75,7 +75,7 @@ took "download"
 # downloads — and the Dockerfile does the rest: the import in a first stage,
 # in the same image that will serve, and the bundle from its output alone.
 # The inputs never reach the final image.
-step "docker build $IMAGE  (this is the import; tens of minutes)"
+step "docker build $IMAGE  (this is the import)"
 cp "variants/$VARIANT/config.yml" "$WORK/config.yml"
 printf 'summary.md\n*.part\n' > "$WORK/.dockerignore"
 docker build \
@@ -90,7 +90,10 @@ docker build \
   --label "dev.motis-bundles.variant=$VARIANT" \
   "$WORK"
 note ""
-note "- image: $(docker image inspect --format '{{.Size}}' "$IMAGE" | awk '{printf "%.2f GB", $1/1e9}')"
+# `docker images`, not `image inspect .Size`: the latter is the unpacked size
+# on the classic store and the compressed one on the containerd store, so the
+# number would change with the Docker host. This is what lands on disk.
+note "- image: $(docker images --format '{{.Size}}' "$IMAGE") on disk"
 took "import + build"
 
 # ── 3. Smoke test ────────────────────────────────────────────────────────────
@@ -100,12 +103,16 @@ took "import + build"
 # pushed; the previous one stays current.
 step "smoke test"
 PORT=${SMOKE_PORT:-18080}
-CID=$(docker run -d --rm -p "127.0.0.1:$PORT:8080" "$IMAGE")
-cleanup() { docker rm -f "$CID" >/dev/null 2>&1 || true; }
+# Not --rm: a server that dies during startup must still be there for the
+# `docker logs` below; cleanup removes it either way. -v drops the anonymous
+# volume that upstream's VOLUME /data creates on every run.
+CID=$(docker run -d -p "127.0.0.1:$PORT:8080" "$IMAGE")
+cleanup() { docker rm -fv "$CID" >/dev/null 2>&1 || true; }
 trap cleanup EXIT
 
-# MOTIS loads the whole graph into memory before it opens its port, so this
-# is minutes, not seconds. Fifteen of them, then the log says why not.
+# MOTIS mmaps its data, so a healthy bundle answers within seconds (six on a
+# desktop). The ceiling is generous for a runner under load; past it, the
+# log says why not.
 for i in $(seq 1 180); do
   if curl -fsS "http://127.0.0.1:$PORT/api/v1/health" >/dev/null 2>&1; then break; fi
   if ! docker ps -q --no-trunc | grep -q "$CID"; then

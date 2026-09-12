@@ -59,10 +59,11 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-24.04
-    # A full import is ~40 minutes on a two-core homelab node; the runner is
-    # faster. Six hours is GitHub's ceiling for a job; this is well under it
-    # and still far above anything that is going right.
-    timeout-minutes: 180
+    # The czech import is 1m 21s on a 12-thread desktop; on the 4-vCPU runner
+    # expect single-digit minutes, plus the download and the image export.
+    # An hour is far above anything that is going right and still stops a
+    # hung feed host or a wedged import long before GitHub's six-hour ceiling.
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       # One entry per directory under variants/. Adding a variant is adding a

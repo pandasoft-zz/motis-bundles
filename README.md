@@ -15,10 +15,11 @@ geocoding — with no import to run and no data to download.
 ## Why a bundle
 
 `motis import` turns feeds and an OSM extract into a data directory, and
-`motis server` serves that directory. The import takes tens of minutes and
-several gigabytes of memory; the server needs neither, only the result. Doing
-the import where the server runs means every server carries an import's worth
-of memory, disk and failure modes for a job that happens once a week.
+`motis server` serves that directory. The import takes minutes of every core
+and several gigabytes of memory; the server needs neither, only the result.
+Doing the import where the server runs means every server carries an
+import's worth of memory, disk and failure modes for a job that happens once
+a week.
 
 A bundle moves the import here, where compute is free and roomy, and ships
 the result as an image: the upstream MOTIS binary, unchanged, plus its data.
@@ -104,8 +105,9 @@ The smoke test plans Brno → Praha by default. A variant elsewhere sets
 docker run --rm -p 8080:8080 motis-bundles/czech:dev
 ```
 
-Needs docker, curl, jq. Budget about a gigabyte of download and, on a
-laptop, tens of minutes for the import; `work/` is git-ignored. BuildKit
+Needs docker, curl, jq. Budget about a gigabyte of download and a few
+minutes for the import — 1m 21s on a 12-thread desktop, longer on fewer
+cores; `work/` is git-ignored. BuildKit
 caches the import stage, so a re-run with unchanged inputs and config skips
 it.
 
