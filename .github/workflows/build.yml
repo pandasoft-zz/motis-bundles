@@ -52,7 +52,7 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: read
+  contents: write    # the release step creates a tag and a release
   packages: write
   actions: write     # the keepalive step re-enables this workflow
 
@@ -130,6 +130,7 @@ jobs:
       # Only after the smoke test, and never from a pull request. The
       # previous bundle stays current until a new one has proven itself.
       - name: Push
+        id: push
         if: github.event_name != 'pull_request'
         env:
           IMAGE: ${{ steps.name.outputs.image }}
@@ -143,6 +144,56 @@ jobs:
           docker push "$IMAGE:$MOTIS"
           docker push "$IMAGE:latest"
           echo "pushed $IMAGE:$TAG (also :$MOTIS, :latest)" >> "$GITHUB_STEP_SUMMARY"
+          # The digest exists only after the push; it is what the release
+          # names, since tags can move and it cannot.
+          echo "digest=$(docker inspect --format '{{index .RepoDigests 0}}' "$IMAGE:$TAG" | cut -d@ -f2)" >> "$GITHUB_OUTPUT"
+
+      # One release per bundle pushed, on the commit that built it: the
+      # image, its tags and digest, what data went in and how big it all
+      # is. The tag is <variant>-<image tag>, so variants built by the same
+      # run get their own release each.
+      - name: Release
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          IMAGE: ${{ steps.name.outputs.image }}
+          TAG: ${{ steps.name.outputs.tag }}
+          MOTIS: ${{ steps.name.outputs.motis }}
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: |
+          {
+            echo "\`\`\`"
+            echo "docker pull $IMAGE:$TAG"
+            echo "\`\`\`"
+            echo
+            echo "| | |"
+            echo "|---|---|"
+            echo "| image | \`$IMAGE\` |"
+            echo "| tags | \`$TAG\` (immutable), \`$MOTIS\`, \`latest\` |"
+            echo "| digest | \`$DIGEST\` |"
+            echo "| MOTIS | $MOTIS |"
+            echo "| size | $(docker images --format '{{.Size}}' "$IMAGE:$TAG") on disk |"
+            echo
+            echo "## Data"
+            echo
+            echo "| file | source | size |"
+            echo "|---|---|---|"
+            # sources.txt gives name and URL, the download step's du gives
+            # the size; joined on the file name.
+            while read -r name url; do
+              case "$name" in ''|'#'*) continue ;; esac
+              size=$(grep -F "input/$name" "work/$VARIANT/summary.md" | awk '{print $2}')
+              echo "| \`$name\` | $url | $size |"
+            done < "variants/$VARIANT/sources.txt"
+            echo
+            echo "## Build"
+            echo
+            grep -E '^- (download|import|startup|smoke)' "work/$VARIANT/summary.md"
+          } > "work/$VARIANT/release.md"
+          gh release create "$VARIANT-$TAG" \
+            --title "$VARIANT $TAG" \
+            --notes-file "work/$VARIANT/release.md" \
+            --target "$GITHUB_SHA"
 
       - name: Keep the schedule alive
         if: github.event_name == 'schedule'

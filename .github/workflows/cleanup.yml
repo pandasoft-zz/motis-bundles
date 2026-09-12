@@ -1,0 +1,52 @@
+# Prunes old bundles from GHCR. GitHub Packages has no retention policy of
+# its own — nothing in the UI or the API says "keep the last N" — so this
+# workflow is that policy, kept apart from the build on purpose: the build
+# makes images, this one decides how many to keep.
+#
+# Every build pushes one package version (three tags on one digest), and the
+# data layer is new each time, so without pruning GHCR grows by a bundle a
+# week. Three versions stay: the current one and two to roll back to.
+#
+# BuildKit attaches an attestation manifest to each push, so a version is an
+# index with untagged children. snok >= 3.1 reads the index of every kept
+# version and protects its children; the children of deleted versions go
+# with them.
+
+name: Cleanup
+
+on:
+  # After every Build run on the default branch, whatever triggered it — the
+  # run either pushed a new version (schedule, push) or pushed nothing (a
+  # pull request), and either way keeping the last three is right.
+  workflow_run:
+    workflows: [Build]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: Only list what would be deleted
+        type: boolean
+        default: false
+
+permissions:
+  packages: write
+
+jobs:
+  prune:
+    runs-on: ubuntu-24.04
+    # A failed build pushed nothing; there is nothing new to make room for.
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    steps:
+      - uses: snok/container-retention-policy@v3
+        with:
+          account: user
+          token: ${{ secrets.GITHUB_TOKEN }}
+          # Exact names, comma-separated, one per variant: GITHUB_TOKEN
+          # cannot list packages, so patterns do not work with it. Adding a
+          # variant means adding it to the build matrix and here.
+          image-names: motis-bundles/czech
+          # Everything is a candidate; keep-n-most-recent does the keeping.
+          cut-off: 1s
+          keep-n-most-recent: 3
+          # Empty outside workflow_dispatch, which reads as false.
+          dry-run: ${{ inputs.dry-run || false }}

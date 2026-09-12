@@ -56,6 +56,17 @@ and serves with. Bumping MOTIS (Renovate does it, in the `Dockerfile`)
 produces a bundle with the new version in its tag; the graph is rebuilt, not
 carried over.
 
+Every push also gets a [release](https://github.com/pandasoft-zz/motis-bundles/releases)
+tagged `<variant>-<motis>-<date>-<time>` on the commit that built it: the
+pull command, the tags and digest, the data that went in with its sizes, and
+the build timings. The releases are the changelog; the images themselves
+carry nothing but the data.
+
+GHCR keeps the last **three** versions of each image — the current one and
+two to roll back to. GitHub Packages has no retention policy of its own, so
+[`cleanup.yml`](.github/workflows/cleanup.yml) is that policy: it runs after
+every build and prunes the rest.
+
 ## How a build goes
 
 [`build.sh`](build.sh) does the whole thing and runs identically on a laptop
@@ -91,8 +102,9 @@ variants/<name>/
   sources.txt    <file>  <url>, one per line
 ```
 
-Then add `<name>` to the matrix in `.github/workflows/build.yml`. The image
-is `ghcr.io/pandasoft-zz/motis-bundles/<name>`. On first push GHCR creates
+Then add `<name>` to the matrix in `.github/workflows/build.yml` and to
+`image-names` in `.github/workflows/cleanup.yml`. The image is
+`ghcr.io/pandasoft-zz/motis-bundles/<name>`. On first push GHCR creates
 the package **private**; switch it to public in the package settings or
 nobody can pull it.
 
