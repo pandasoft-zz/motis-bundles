@@ -107,7 +107,7 @@ jobs:
           echo "$image:$tag"
 
       - name: Download, import, build, smoke-test
-        run: ./build.sh "${{ matrix.variant }}" "${{ steps.name.outputs.image }}:${{ steps.name.outputs.tag }}"
+        run: bash build.sh "${{ matrix.variant }}" "${{ steps.name.outputs.image }}:${{ steps.name.outputs.tag }}"
 
       - name: Summary
         if: always()
