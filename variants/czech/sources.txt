@@ -1,0 +1,13 @@
+# What build.sh downloads into input/ before the import, one per line:
+#
+#   <file name under input/>   <URL>
+#
+# The file names are what config.yml refers to. Every URL is a public
+# "latest" endpoint — there is no version to pin, which is why the build runs
+# on a schedule rather than on demand. Blank lines and # comments are ignored.
+
+czech-republic.osm.pbf   https://download.geofabrik.de/europe/czech-republic-latest.osm.pbf
+jmk.gtfs.zip             https://kordis-jmk.cz/gtfs/gtfs.zip
+pid.gtfs.zip             https://data.pid.cz/PID_GTFS.zip
+czptt.gtfs.zip           https://data.jr.ggu.cz/results/latest/CZPTT_GTFS.zip
+jdf.gtfs.zip             https://raw.githubusercontent.com/0xaa55h/gtfs-processor/refs/heads/gtfs/files/latest.zip
