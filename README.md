@@ -62,6 +62,20 @@ pull command, the tags and digest, the data that went in with its sizes, and
 the build timings. The releases are the changelog; the images themselves
 carry nothing but the data.
 
+### train-brands.json
+
+The `czech` release also has the asset `train-brands.json`: IDS JMK train
+number → line brand, rail only, from the same feed as the image.
+
+```json
+{"4968":"S3","986":"R9"}
+```
+
+A train number with more than one brand is left out. Trasio uses the file
+to show the line brand on national-rail (`czptt`) legs, which carry only the
+official name (`Os 4968`). It is at
+`https://github.com/pandasoft-zz/motis-bundles/releases/download/<release tag>/train-brands.json`.
+
 GHCR keeps the last **three** versions of each image — the current one and
 two to roll back to. GitHub Packages has no retention policy of its own, so
 [`cleanup.yml`](.github/workflows/cleanup.yml) is that policy: it runs after
@@ -76,15 +90,23 @@ phases as three steps of one job so the pipeline shows each on its own:
 1. **download** the variant's [`sources.txt`](variants/czech/sources.txt) into
    `work/<variant>/input/` and test every zip — a feed host in maintenance
    answers 200 with an HTML page.
-2. **build** with `work/<variant>/` as the context. The
+2. **prepare** the inputs, if the variant has a `prepare.sh`. For `czech`
+   it adds the train number (`trip_short_name`) to the IDS JMK rail trips —
+   KORDIS publishes it only in the non-standard `api.txt`, which MOTIS does
+   not read — and writes `train-brands.json`, see below. The change only
+   adds values; the feed stays standard GTFS.
+3. **build** with `work/<variant>/` as the context. The
    [`Dockerfile`](Dockerfile) is two stages from the same upstream image: the
    first runs `motis import`, the second copies only its output to `/bundle`.
    The inputs never enter the image, and the import happens inside the build
    because a Docker Desktop bind mount cannot resize the mmap'd files the
    import writes (`unable to import: resize error`) — a build stage works
    the same on a laptop and on the Linux runner.
-3. **smoke-test** it: start the image, wait for `/api/v1/health`, geocode a
+4. **smoke-test** it: start the image, wait for `/api/v1/health`, geocode a
    place, plan a journey for tomorrow morning and check it contains transit.
+   For `czech` it also plans an IDS JMK train (Brno-Židenice → Tišnov) and
+   checks that the leg has the line brand in `routeShortName` (`S3`) and the
+   train number in `tripShortName` (`4968`).
 
 Only then does the workflow push. A bundle that fails any step is not
 published and the previous one stays current. The workflow also runs on pull
@@ -100,6 +122,8 @@ Actions tab.
 variants/<name>/
   config.yml     MOTIS import config; input paths are input/<file>
   sources.txt    <file>  <url>, one per line
+  prepare.sh     optional; changes input/ before the import. Runs in
+                 work/<name>/; *.json it writes there become release assets
 ```
 
 Then add `<name>` to the matrix in `.github/workflows/build.yml` and to
@@ -109,7 +133,8 @@ the package **private**; switch it to public in the package settings or
 nobody can pull it.
 
 The smoke test plans Brno → Praha by default. A variant elsewhere sets
-`SMOKE_FROM`, `SMOKE_TO` (`lat,lon`) and `SMOKE_GEOCODE` for `build.sh`.
+`SMOKE_FROM`, `SMOKE_TO` (`lat,lon`) and `SMOKE_GEOCODE` for `build.sh`, and
+`SMOKE_TRAIN_FROM=` (empty) to skip the IDS JMK train check.
 
 ## Running a build locally
 
@@ -119,7 +144,7 @@ bash build.sh test czech          # one phase: download, build or test
 docker run --rm -p 8080:8080 motis-bundles/czech:dev
 ```
 
-Needs docker, curl, jq. Budget about a gigabyte of download and a few
+Needs docker, curl, jq, python3. Budget about a gigabyte of download and a few
 minutes for the import — 1m 21s on a 12-thread desktop, longer on fewer
 cores; `work/` is git-ignored. BuildKit
 caches the import stage, so a re-run with unchanged inputs and config skips
