@@ -190,7 +190,7 @@ smoke() {
     legs=$(echo "$plan" | jq -c '[.itineraries[].legs[] | select((.tripId // "" | test("_jmk_")) and (.routeType == 2 or (.routeType >= 100 and .routeType <= 117)))]')
     echo "$legs" | jq -e 'length > 0' >/dev/null \
       || { echo "no IDS JMK train $tfrom -> $tto: $(echo "$plan" | head -c 500)" >&2; exit 1; }
-    echo "$legs" | jq -e 'all(.routeShortName != "" and (.tripShortName // "" | test("^[0-9]+$")))' >/dev/null \
+    echo "$legs" | jq -e 'all((.routeShortName // "" | test("^[A-Za-z]+[0-9]+$")) and (.tripShortName // "" | test("^[0-9]+$")))' >/dev/null \
       || { echo "IDS JMK train without line brand or train number: $legs" >&2; exit 1; }
     note "- smoke: train names ok, e.g. $(echo "$legs" | jq -r '.[0] | "\(.routeShortName) \(.tripShortName)"') $tfrom -> $tto"
   fi
