@@ -188,12 +188,17 @@ jobs:
             echo
             echo "## Build"
             echo
-            grep -E '^- (download|import|startup|smoke)' "work/$VARIANT/summary.md"
+            grep -E '^- (download|prepare|jmk|import|startup|smoke)' "work/$VARIANT/summary.md"
           } > "work/$VARIANT/release.md"
+          # Side files from prepare.py (work/<variant>/out/) ride along as
+          # release assets, e.g. train-brands.json for the czech variant.
+          shopt -s nullglob
+          assets=("work/$VARIANT/out/"*)
           gh release create "$VARIANT-$TAG" \
             --title "$VARIANT $TAG" \
             --notes-file "work/$VARIANT/release.md" \
-            --target "$GITHUB_SHA"
+            --target "$GITHUB_SHA" \
+            "${assets[@]}"
 
       - name: Keep the schedule alive
         if: github.event_name == 'schedule'

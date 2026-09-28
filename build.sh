@@ -17,7 +17,8 @@
 # timings, which CI lifts into the job summary.
 #
 # The same script runs in CI and on a laptop; CI adds only disk cleanup
-# before and a push after. Needs docker, curl and jq.
+# before and a push after. Needs docker, curl and jq, and python3 for a
+# variant that has a prepare.py.
 set -euo pipefail
 
 case ${1:-} in
@@ -83,6 +84,19 @@ download() {
   fi
   du -sh "$WORK"/input/* | sed 's/^/- /' | tee -a "$SUMMARY"
   took "download"
+
+  # A variant may fix up its inputs before the import: variants/<name>/
+  # prepare.py gets the work directory, may add missing standard fields to a
+  # feed in input/, and may write side files to out/ that the release
+  # attaches (the czech one writes train-brands.json). It must never change a
+  # value the feed already has.
+  rm -rf "$WORK/out"
+  if [ -f "variants/$VARIANT/prepare.py" ]; then
+    command -v python3 >/dev/null || { echo "python3 is required for variants/$VARIANT/prepare.py" >&2; exit 2; }
+    step "prepare inputs for $VARIANT"
+    python3 "variants/$VARIANT/prepare.py" "$WORK" | tee -a "$SUMMARY"
+    took "prepare"
+  fi
 }
 
 # ── 2. Import and image ──────────────────────────────────────────────────────
@@ -93,7 +107,7 @@ download() {
 build() {
   step "docker build $IMAGE  (this is the import)"
   cp "variants/$VARIANT/config.yml" "$WORK/config.yml"
-  printf 'summary.md\n*.part\n' > "$WORK/.dockerignore"
+  printf 'summary.md\n*.part\nout/\n' > "$WORK/.dockerignore"
   docker build \
     --progress=plain \
     --file Dockerfile \
@@ -164,6 +178,24 @@ smoke() {
   echo "$plan" | jq -e '[.itineraries[].legs[].mode] | any(. != "WALK")' >/dev/null \
     || { echo "plan found only walking legs; no transit in the graph?" >&2; exit 1; }
   note "- smoke: healthy, geocode ok, $(echo "$plan" | jq '.itineraries | length') itineraries $from -> $to at $when"
+
+  # A variant with train numbers (prepare.py wrote train-brands.json): the
+  # departures of a big station should carry them as tripShortName. Only a
+  # note, not a failure — how MOTIS merges duplicate trains across feeds can
+  # move the numbers to the other feed's trip, and that is no reason to hold
+  # back a bundle.
+  if [ -s "$WORK/out/train-brands.json" ]; then
+    local station stop numbered
+    station=${SMOKE_TRAIN_STATION:-Brno hl.n.}
+    stop=$(curl -fsS "http://127.0.0.1:$port/api/v1/geocode?type=STOP&text=$(printf %s "$station" | jq -sRr @uri)" \
+      | jq -r '.[0].id // empty' || true)
+    numbered=0
+    if [ -n "$stop" ]; then
+      numbered=$(curl -fsS "http://127.0.0.1:$port/api/v6/stoptimes?stopId=$(printf %s "$stop" | jq -sRr @uri)&time=$when&n=100" \
+        | jq '[.stopTimes[] | select((.tripShortName // "") != "")] | length' 2>/dev/null || echo 0)
+    fi
+    note "- smoke: $numbered of 100 departures at $station carry a train number (tripShortName)"
+  fi
 
   cleanup; trap - EXIT
 }

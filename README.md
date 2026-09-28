@@ -75,7 +75,8 @@ phases as three steps of one job so the pipeline shows each on its own:
 
 1. **download** the variant's [`sources.txt`](variants/czech/sources.txt) into
    `work/<variant>/input/` and test every zip — a feed host in maintenance
-   answers 200 with an HTML page.
+   answers 200 with an HTML page. Then run the variant's `prepare.py`, if it
+   has one (see [Prepared inputs](#prepared-inputs)).
 2. **build** with `work/<variant>/` as the context. The
    [`Dockerfile`](Dockerfile) is two stages from the same upstream image: the
    first runs `motis import`, the second copies only its output to `/bundle`.
@@ -85,6 +86,8 @@ phases as three steps of one job so the pipeline shows each on its own:
    the same on a laptop and on the Linux runner.
 3. **smoke-test** it: start the image, wait for `/api/v1/health`, geocode a
    place, plan a journey for tomorrow morning and check it contains transit.
+   For a variant with train numbers it also notes how many departures of a
+   big station carry one (a note, not a failure).
 
 Only then does the workflow push. A bundle that fails any step is not
 published and the previous one stays current. The workflow also runs on pull
@@ -94,12 +97,42 @@ build and serve before it merges.
 Builds run Mondays 01:00 UTC, on every push to `main`, and by hand from the
 Actions tab.
 
+## Prepared inputs
+
+A variant may add a `prepare.py`. `build.sh` runs it after the download with
+the work directory as its only argument. It may **add** missing standard
+GTFS fields to a feed in `input/`, and it may write side files to
+`work/<variant>/out/`; the workflow attaches those to the release. It must
+never change a value that a feed already has — MOTIS serves the data as the
+publishers made it.
+
+[`variants/czech/prepare.py`](variants/czech/prepare.py) does this for
+IDS JMK. The feed leaves `trips.trip_short_name` empty and keeps the train
+numbers in its own `api.txt`, which MOTIS ignores
+(`Linka/CVlaku = trip_id: 130/4968 = 11145`). The script:
+
+- writes the train number into `trip_short_name` of each rail trip, so a
+  jmk rail leg comes out of MOTIS with `routeShortName: "S3"` (the IDS line
+  brand) **and** `tripShortName: "4968"` (the train number);
+- writes `train-brands.json`, train number → IDS line brand
+  (`{"4968": "S3", …}`), for rail legs from the national feed (czptt), which
+  carry only the national name (`Os 4968`). A train number with more than one
+  brand (a train that changes line on the way) is left out.
+
+The newest file is always at
+`https://github.com/pandasoft-zz/motis-bundles/releases/latest/download/train-brands.json`.
+It is built from the same download as the image of that release.
+
+If KORDIS ever fills `trip_short_name` itself, the script leaves those
+values alone and only the side file is still needed.
+
 ## Adding a variant
 
 ```
 variants/<name>/
   config.yml     MOTIS import config; input paths are input/<file>
   sources.txt    <file>  <url>, one per line
+  prepare.py     optional, see Prepared inputs
 ```
 
 Then add `<name>` to the matrix in `.github/workflows/build.yml` and to
@@ -109,7 +142,8 @@ the package **private**; switch it to public in the package settings or
 nobody can pull it.
 
 The smoke test plans Brno → Praha by default. A variant elsewhere sets
-`SMOKE_FROM`, `SMOKE_TO` (`lat,lon`) and `SMOKE_GEOCODE` for `build.sh`.
+`SMOKE_FROM`, `SMOKE_TO` (`lat,lon`), `SMOKE_GEOCODE` and, with train
+numbers, `SMOKE_TRAIN_STATION` for `build.sh`.
 
 ## Running a build locally
 
@@ -119,7 +153,7 @@ bash build.sh test czech          # one phase: download, build or test
 docker run --rm -p 8080:8080 motis-bundles/czech:dev
 ```
 
-Needs docker, curl, jq. Budget about a gigabyte of download and a few
+Needs docker, curl, jq, and python3 for a variant with a `prepare.py`. Budget about a gigabyte of download and a few
 minutes for the import — 1m 21s on a 12-thread desktop, longer on fewer
 cores; `work/` is git-ignored. BuildKit
 caches the import stage, so a re-run with unchanged inputs and config skips
