@@ -1,0 +1,79 @@
+name: Renovate
+
+# Runs Renovate for this repository. `renovate.json` says what it updates:
+# MOTIS in the Dockerfile and the actions these workflows pin. Before this
+# file, nothing ran Renovate here, so no update ever came.
+#
+# Same setup as trasio-deploy's `renovate.yml`: self-hosted in Actions, once
+# a day, as the deploy GitHub App.
+#
+# ── Why an app token ─────────────────────────────────────────────────────────
+#
+# A pull request opened with GITHUB_TOKEN starts no workflow. Here the Build
+# check on the pull request IS the test of a new MOTIS version, and automerge
+# waits for it. With the app token, Build runs like on any other pull request.
+#
+# Needs, in this repository's settings:
+#   - the app installed on this repository
+#     (contents, pull requests, issues, workflows: write)
+#   - variable DEPLOY_APP_ID and secret DEPLOY_APP_PRIVATE_KEY
+#
+# ── Automerge takes two runs ─────────────────────────────────────────────────
+#
+# Renovate does not merge a pull request it has just opened. It merges on a
+# later run, when it sees Build green. So a patch or minor lands about a day
+# after it is released. To act now, tick its checkbox on the dashboard issue,
+# or press the button here.
+
+on:
+  schedule:
+    - cron: '0 4 * * *' # 04:00 UTC, after the Monday build at 01:00
+  workflow_dispatch:
+    inputs:
+      log_level:
+        description: 'Renovate log level'
+        required: false
+        default: 'info'
+        type: choice
+        options: [info, debug]
+
+concurrency:
+  group: renovate
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  renovate:
+    name: Renovate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Mint an app token
+        id: token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ vars.DEPLOY_APP_ID }}
+          private-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
+          owner: pandasoft-zz
+          repositories: motis-bundles
+
+      - uses: actions/checkout@v7
+
+      - name: Run Renovate
+        uses: renovatebot/github-action@v46.3.4
+        env:
+          # This repository only, even if the app is installed on more.
+          RENOVATE_REPOSITORIES: ${{ github.repository }}
+          RENOVATE_LOG_LEVEL: ${{ inputs.log_level || 'info' }}
+          # GHCR tag lookups for MOTIS as the app, not anonymous, so they do
+          # not hit the unauthenticated rate limit.
+          RENOVATE_HOST_RULES: >-
+            [{"hostType":"docker","matchHost":"ghcr.io","username":"x-access-token","password":"${{ steps.token.outputs.token }}"}]
+        with:
+          token: ${{ steps.token.outputs.token }}
+          configurationFile: renovate.json
+          # The github-actions manager does not see this input. The regex
+          # manager in renovate.json bumps it.
+          renovate-version: 41.173.1

@@ -3,6 +3,16 @@
   "extends": ["config:recommended"],
   "timezone": "Europe/Prague",
   "dependencyDashboard": true,
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "The Renovate version the workflow runs. The github-actions manager does not see the renovate-version input.",
+      "managerFilePatterns": ["/^\\.github/workflows/renovate\\.yml$/"],
+      "matchStrings": ["renovate-version:\\s*(?<currentValue>\\d+\\.\\d+\\.\\d+)"],
+      "datasourceTemplate": "docker",
+      "depNameTemplate": "ghcr.io/renovatebot/renovate"
+    }
+  ],
   "packageRules": [
     {
       "description": "MOTIS itself. The pull request IS the test: Build runs the full import and smoke test on the new version before anything merges, so a green check means the graph builds and serves on it. Patch and minor merge on their own; a major waits for a human to read the release notes.",
