@@ -37,7 +37,7 @@ jobs:
     # A failed build pushed nothing; there is nothing new to make room for.
     if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     steps:
-      - uses: snok/container-retention-policy@v3
+      - uses: snok/container-retention-policy@v3.1.0 # no floating v3 tag upstream
         with:
           account: user
           token: ${{ secrets.GITHUB_TOKEN }}
