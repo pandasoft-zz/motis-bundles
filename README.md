@@ -150,6 +150,15 @@ cores; `work/` is git-ignored. BuildKit
 caches the import stage, so a re-run with unchanged inputs and config skips
 it.
 
+## Renovate
+
+`.github/workflows/renovate.yml` runs Renovate once a day (04:00 UTC) as its
+own GitHub App, separate from trasio. It updates MOTIS in the `Dockerfile`,
+the pinned actions and its own version; `renovate.json` has the rules. Patch
+and minor merge on their own after Build is green; a major waits for a human.
+The app must be installed on this repository, with the variable
+`RENOVATE_APP_ID` and the secret `RENOVATE_APP_PRIVATE_KEY` set.
+
 ## Keeping the schedule alive
 
 GitHub disables scheduled workflows in a repository with no activity for 60
