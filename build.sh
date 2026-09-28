@@ -17,7 +17,7 @@
 # timings, which CI lifts into the job summary.
 #
 # The same script runs in CI and on a laptop; CI adds only disk cleanup
-# before and a push after. Needs docker, curl and jq.
+# before and a push after. Needs docker, curl, jq and python3.
 set -euo pipefail
 
 case ${1:-} in
@@ -37,7 +37,7 @@ export MSYS_NO_PATHCONV=1
 # Checked first, in every phase, not where they are used: jq is needed only
 # by the smoke test, and finding that out after the import is the wrong
 # moment.
-for tool in docker curl jq; do
+for tool in docker curl jq python3; do
   command -v "$tool" >/dev/null || { echo "$tool is required and not installed" >&2; exit 2; }
 done
 
@@ -83,6 +83,21 @@ download() {
   fi
   du -sh "$WORK"/input/* | sed 's/^/- /' | tee -a "$SUMMARY"
   took "download"
+  prepare
+}
+
+# ── 1b. Prepare ──────────────────────────────────────────────────────────────
+# A variant may change its inputs before the import with
+# variants/<variant>/prepare.sh. It runs in the work directory, with the
+# downloads in input/, and may leave files beside them that the release
+# publishes (train-brands.json). Keep such changes standard GTFS and
+# add-only: the feed must still mean what its publisher wrote.
+prepare() {
+  local hook="variants/$VARIANT/prepare.sh"
+  [ -f "$hook" ] || return 0
+  step "prepare inputs for $VARIANT"
+  (cd "$WORK" && REPO="$OLDPWD" bash "$OLDPWD/$hook") | tee -a "$SUMMARY"
+  took "prepare"
 }
 
 # ── 2. Import and image ──────────────────────────────────────────────────────
@@ -93,7 +108,7 @@ download() {
 build() {
   step "docker build $IMAGE  (this is the import)"
   cp "variants/$VARIANT/config.yml" "$WORK/config.yml"
-  printf 'summary.md\n*.part\n' > "$WORK/.dockerignore"
+  printf 'summary.md\n*.part\n*.json\n' > "$WORK/.dockerignore"
   docker build \
     --progress=plain \
     --file Dockerfile \
@@ -164,6 +179,21 @@ smoke() {
   echo "$plan" | jq -e '[.itineraries[].legs[].mode] | any(. != "WALK")' >/dev/null \
     || { echo "plan found only walking legs; no transit in the graph?" >&2; exit 1; }
   note "- smoke: healthy, geocode ok, $(echo "$plan" | jq '.itineraries | length') itineraries $from -> $to at $when"
+
+  # Train numbers from prepare.sh. A train between two IDS JMK stops (MOTIS
+  # stop ids; default Brno-Zidenice -> Tisnov, line S3) must come back with
+  # both names: the line brand in routeShortName and the train number in
+  # tripShortName. An empty SMOKE_TRAIN_FROM skips the check.
+  local tfrom=${SMOKE_TRAIN_FROM-jmk_U1809Z10} tto=${SMOKE_TRAIN_TO-jmk_U13334Z20} legs
+  if [ -n "$tfrom" ]; then
+    plan=$(curl -fsS "http://127.0.0.1:$port/api/v1/plan?fromPlace=$tfrom&toPlace=$tto&time=$when")
+    legs=$(echo "$plan" | jq -c '[.itineraries[].legs[] | select((.tripId // "" | test("_jmk_")) and (.routeType == 2 or (.routeType >= 100 and .routeType <= 117)))]')
+    echo "$legs" | jq -e 'length > 0' >/dev/null \
+      || { echo "no IDS JMK train $tfrom -> $tto: $(echo "$plan" | head -c 500)" >&2; exit 1; }
+    echo "$legs" | jq -e 'all((.routeShortName // "" | test("^[A-Za-z]+[0-9]+$")) and (.tripShortName // "" | test("^[0-9]+$")))' >/dev/null \
+      || { echo "IDS JMK train without line brand or train number: $legs" >&2; exit 1; }
+    note "- smoke: train names ok, e.g. $(echo "$legs" | jq -r '.[0] | "\(.routeShortName) \(.tripShortName)"') $tfrom -> $tto"
+  fi
 
   cleanup; trap - EXIT
 }
