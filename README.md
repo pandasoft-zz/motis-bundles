@@ -127,12 +127,12 @@ it.
 
 ## Renovate
 
-`.github/workflows/renovate.yml` runs Renovate once a day (04:00 UTC) as the
-deploy GitHub App. It updates MOTIS in the `Dockerfile`, the pinned actions
-and its own version; `renovate.json` has the rules. Patch and minor merge on
-their own after Build is green; a major waits for a human. The app must be
-installed on this repository, with the variable `DEPLOY_APP_ID` and the secret
-`DEPLOY_APP_PRIVATE_KEY` set.
+`.github/workflows/renovate.yml` runs Renovate once a day (04:00 UTC) as its
+own GitHub App, separate from trasio. It updates MOTIS in the `Dockerfile`,
+the pinned actions and its own version; `renovate.json` has the rules. Patch
+and minor merge on their own after Build is green; a major waits for a human.
+The app must be installed on this repository, with the variable
+`RENOVATE_APP_ID` and the secret `RENOVATE_APP_PRIVATE_KEY` set.
 
 ## Keeping the schedule alive
 

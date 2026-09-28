@@ -5,7 +5,8 @@ name: Renovate
 # file, nothing ran Renovate here, so no update ever came.
 #
 # Same setup as trasio-deploy's `renovate.yml`: self-hosted in Actions, once
-# a day, as the deploy GitHub App.
+# a day. It uses its own GitHub App, not the trasio deploy app: this is a
+# separate public project and does not share credentials with trasio.
 #
 # ── Why an app token ─────────────────────────────────────────────────────────
 #
@@ -15,8 +16,9 @@ name: Renovate
 #
 # Needs, in this repository's settings:
 #   - the app installed on this repository
-#     (contents, pull requests, issues, workflows: write)
-#   - variable DEPLOY_APP_ID and secret DEPLOY_APP_PRIVATE_KEY
+#     (contents, pull requests, issues, workflows: write;
+#      checks, commit statuses: read)
+#   - variable RENOVATE_APP_ID and secret RENOVATE_APP_PRIVATE_KEY
 #
 # ── Automerge takes two runs ─────────────────────────────────────────────────
 #
@@ -54,8 +56,8 @@ jobs:
         id: token
         uses: actions/create-github-app-token@v3
         with:
-          app-id: ${{ vars.DEPLOY_APP_ID }}
-          private-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
+          app-id: ${{ vars.RENOVATE_APP_ID }}
+          private-key: ${{ secrets.RENOVATE_APP_PRIVATE_KEY }}
           owner: pandasoft-zz
           repositories: motis-bundles
 
