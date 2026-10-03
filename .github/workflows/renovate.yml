@@ -78,4 +78,4 @@ jobs:
           configurationFile: renovate.json
           # The github-actions manager does not see this input. The regex
           # manager in renovate.json bumps it.
-          renovate-version: 41.173.1
+          renovate-version: 44.132.2
