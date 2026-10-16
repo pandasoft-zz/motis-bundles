@@ -11,7 +11,7 @@
 # MOTIS_VERSION is stated HERE and nowhere else. Renovate bumps it on this
 # line; build.sh reads it from this line for the tag. A second copy anywhere
 # would be the one that drifts.
-ARG MOTIS_VERSION=2.11.2
+ARG MOTIS_VERSION=2.11.3
 
 # ── 1. Import ────────────────────────────────────────────────────────────────
 # Inside the build rather than in a `docker run` with a bind mount, because
