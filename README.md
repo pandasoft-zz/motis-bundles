@@ -123,8 +123,12 @@ Actions tab.
 
 `czech` downloads 28 SRTM1 tiles (1 arc-second, about 30 m) from the AWS
 Terrain Tiles open dataset with the other inputs (about 700 MB unpacked) and
-sets `street_routing.elevation_data_dir`. The tiles only feed the import; the
-image grows by the elevation index MOTIS builds from them.
+sets `street_routing.elevation_data_dir`. The tiles only feed the import and
+do not enter the image. MOTIS keeps no height grid: for every segment of an
+OSM way it samples the tiles at their resolution and stores only the climb
+and the descent, 4 bits each (0, 1, 2, 4, 6, 8, 11 … 48 m). That is about
+11 MB (`osr/elevation_*.bin`) for all of Czechia. Results of a comparison
+with Mapy.cz: [docs/routing-comparison.md](docs/routing-comparison.md).
 
 What it changes in MOTIS 2.11:
 
