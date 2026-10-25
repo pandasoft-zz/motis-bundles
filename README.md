@@ -9,8 +9,9 @@ docker run --rm -p 8080:8080 ghcr.io/pandasoft-zz/motis-bundles/czech:latest
 ```
 
 That is a routing server for the whole of Czechia — trains, regional and
-national buses, Prague and Brno public transport, walking on OpenStreetMap,
-geocoding — with no import to run and no data to download.
+national buses, Prague and Brno public transport, walking and cycling on
+OpenStreetMap with SRTM elevation, geocoding — with no import to run and no
+data to download.
 
 ## Why a bundle
 
@@ -106,7 +107,9 @@ phases as three steps of one job so the pipeline shows each on its own:
    place, plan a journey for tomorrow morning and check it contains transit.
    For `czech` it also plans an IDS JMK train (Brno-Židenice → Tišnov) and
    checks that the leg has the line brand in `routeShortName` (`S3`) and the
-   train number in `tripShortName` (`4968`).
+   train number in `tripShortName` (`4968`). It checks the elevation too:
+   the server reports `hasElevation`, and a bike route Horní Hanychov →
+   Ještěd has at least 100 m of climb (`SMOKE_CLIMB_FROM=` skips it).
 
 Only then does the workflow push. A bundle that fails any step is not
 published and the previous one stays current. The workflow also runs on pull
@@ -115,6 +118,45 @@ build and serve before it merges.
 
 Builds run Mondays 01:00 UTC, on every push to `main`, and by hand from the
 Actions tab.
+
+## Elevation
+
+`czech` downloads 28 SRTM1 tiles (1 arc-second, about 30 m) from the AWS
+Terrain Tiles open dataset with the other inputs (about 700 MB unpacked) and
+sets `street_routing.elevation_data_dir`. The tiles only feed the import; the
+image grows by the elevation index MOTIS builds from them.
+
+What it changes in MOTIS 2.11:
+
+- street legs carry `elevationUp` / `elevationDown` on their steps;
+- `BIKE` routes can avoid hills with `elevationCosts=LOW|HIGH`, and the
+  duration then includes the climb;
+- `WALK` does not use elevation: walk times stay flat-ground times (the
+  API documents elevation costs for `BIKE` only).
+
+## Comparing walk and bike routes with Mapy.cz
+
+```sh
+MAPY_CZ_API_KEY=... bash build.sh compare czech
+```
+
+starts the image and runs [`scripts/compare-routing.py`](scripts/compare-routing.py)
+on [`variants/czech/routing-cases.json`](variants/czech/routing-cases.json):
+urban and mountain walks, road and MTB rides. For each case it asks MOTIS
+(`/api/v6/plan`, direct `WALK` or `BIKE`, for bikes also `elevationCosts=HIGH`)
+and Mapy.cz with the profiles Trasio uses (`foot_hiking`, `bike_road`,
+`bike_mountain`), and writes `work/czech/compare/`:
+
+- `report.md` — time, distance, climb and overlap per case. Climb is counted
+  from the same SRTM tiles for both lines, so it does not depend on the
+  router's own elevation model. For walks there is also a Tobler hiking time
+  from the MOTIS line, the time a client could compute itself;
+- `report.json` — the same numbers;
+- `routes.geojson` — both lines of each case, for geojson.io or QGIS.
+
+It is not part of a build: Mapy.cz is a paid API. Without the key only MOTIS
+is asked. The helpers have unit tests:
+`python3 -m unittest discover scripts`.
 
 ## Adding a variant
 
@@ -144,7 +186,7 @@ bash build.sh test czech          # one phase: download, build or test
 docker run --rm -p 8080:8080 motis-bundles/czech:dev
 ```
 
-Needs docker, curl, jq, python3. Budget about a gigabyte of download and a few
+Needs docker, curl, gzip, jq, python3. Budget about 1.7 gigabytes of download and a few
 minutes for the import — 1m 21s on a 12-thread desktop, longer on fewer
 cores; `work/` is git-ignored. BuildKit
 caches the import stage, so a re-run with unchanged inputs and config skips

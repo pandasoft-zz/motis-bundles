@@ -31,7 +31,12 @@ timetable:
   # duplicates across datasets.
   merge_dupes_inter_src: true
 
-street_routing: true
+# elevation_data_dir: the SRTM tiles from sources.txt. With them MOTIS
+# returns climb and descent (elevationUp / elevationDown) for street legs,
+# and the BIKE mode can avoid hills (the elevationCosts parameter). In MOTIS
+# 2.11 the elevation changes only BIKE routes; WALK times stay flat.
+street_routing:
+  elevation_data_dir: input/srtm
 osr_footpath: true
 geocoding: true
 reverse_geocoding: true

@@ -3,28 +3,29 @@
 # (the Dockerfile runs `motis import` inside the build), and prove the bundle
 # serves before anyone is allowed to push it.
 #
-#   build.sh [download|build|test] <variant> [image[:tag]]
+#   build.sh [download|build|test|compare] <variant> [image[:tag]]
 #
 #   build.sh czech                                   -> motis-bundles/czech:dev
 #   build.sh czech ghcr.io/pandasoft-zz/motis-bundles/czech:2.11.2-20260915-0100
 #   build.sh test czech                              only the smoke test
+#   build.sh compare czech                           walk/bike vs Mapy.cz
 #
-# Without a phase all three run in order. With one, only that phase runs —
-# the workflow calls them as three steps so each shows up in the pipeline
+# Without a phase the first three run in order; compare runs only when
+# asked for. With one, only that phase runs — the workflow calls them as three steps so each shows up in the pipeline
 # with its own timing and log, while the image stays in the one job's docker
 # daemon and is never transferred. A phase relies on the previous one's
 # output under work/<variant>/: the inputs, and summary.md with sizes and
 # timings, which CI lifts into the job summary.
 #
 # The same script runs in CI and on a laptop; CI adds only disk cleanup
-# before and a push after. Needs docker, curl, jq and python3.
+# before and a push after. Needs docker, curl, gzip, jq and python3.
 set -euo pipefail
 
 case ${1:-} in
-  download|build|test) PHASE=$1; shift ;;
+  download|build|test|compare) PHASE=$1; shift ;;
   *) PHASE=all ;;
 esac
-VARIANT=${1:?usage: build.sh [download|build|test] <variant> [image[:tag]]}
+VARIANT=${1:?usage: build.sh [download|build|test|compare] <variant> [image[:tag]]}
 IMAGE=${2:-motis-bundles/$VARIANT:dev}
 
 cd "$(dirname "$0")"
@@ -37,7 +38,7 @@ export MSYS_NO_PATHCONV=1
 # Checked first, in every phase, not where they are used: jq is needed only
 # by the smoke test, and finding that out after the import is the wrong
 # moment.
-for tool in docker curl jq python3; do
+for tool in docker curl gzip jq python3; do
   command -v "$tool" >/dev/null || { echo "$tool is required and not installed" >&2; exit 2; }
 done
 
@@ -64,11 +65,15 @@ download() {
   while read -r name url; do
     case "$name" in ''|'#'*) continue ;; esac
     echo "-> $name"
+    mkdir -p "$(dirname "$WORK/input/$name")"
     # Into a .part and moved on success, so an interrupted download cannot
     # leave a truncated file that the import then accepts.
     curl -fsSL --retry 5 --retry-all-errors --retry-delay 15 \
          -o "$WORK/input/$name.part" "$url"
     mv "$WORK/input/$name.part" "$WORK/input/$name"
+    # MOTIS cannot read gzip (the SRTM tiles come as .hgt.gz). Unpack it
+    # here, so the import sees the plain file.
+    case "$name" in *.gz) gunzip -f "$WORK/input/$name" ;; esac
   done < "variants/$VARIANT/sources.txt"
 
   # A feed host in maintenance answers 200 with an HTML page, and curl saves
@@ -134,9 +139,10 @@ build() {
 # a user would ask: is it healthy, does it find a place, does it plan a
 # journey with actual transit in it. A bundle that fails any of these is not
 # pushed; the previous one stays current.
-smoke() {
-  step "smoke test"
-  local port=${SMOKE_PORT:-18080}
+
+# Starts the image on 127.0.0.1:$port and waits until it is healthy. Sets
+# CID and an EXIT trap that removes the container.
+start_server() {
   # Not --rm: a server that dies during startup must still be there for the
   # `docker logs` below; cleanup removes it either way. -v drops the
   # anonymous volume that upstream's VOLUME /data creates on every run.
@@ -155,6 +161,12 @@ smoke() {
     [ "$i" -eq 180 ] && { echo "server not healthy after 15 minutes:" >&2; docker logs "$CID" 2>&1 | tail -50 >&2; exit 1; }
     sleep 5
   done
+}
+
+smoke() {
+  step "smoke test"
+  local port=${SMOKE_PORT:-18080}
+  start_server
   took "startup to healthy"
 
   # A place lookup: geocoding is enabled in the config, so it must answer.
@@ -180,6 +192,22 @@ smoke() {
     || { echo "plan found only walking legs; no transit in the graph?" >&2; exit 1; }
   note "- smoke: healthy, geocode ok, $(echo "$plan" | jq '.itineraries | length') itineraries $from -> $to at $when"
 
+  # Elevation. With street_routing.elevation_data_dir the server says it has
+  # elevation, and a bike route up a hill (default Horni Hanychov -> Jested,
+  # about +500 m) comes back with climb on its steps. Without the tiles the
+  # import still succeeds, only with no climb, so this is the check that
+  # they were found. An empty SMOKE_CLIMB_FROM skips it.
+  local cfrom=${SMOKE_CLIMB_FROM-50.7389,15.0167} cto=${SMOKE_CLIMB_TO-50.7328,14.9839} up
+  if [ -n "$cfrom" ]; then
+    curl -fsS "http://127.0.0.1:$port/api/v1/map/initial" | jq -e '.serverConfig.hasElevation' >/dev/null \
+      || { echo "server reports no elevation data" >&2; exit 1; }
+    plan=$(curl -fsS "http://127.0.0.1:$port/api/v6/plan?fromPlace=$cfrom&toPlace=$cto&transitModes=&directModes=BIKE&maxDirectTime=7200")
+    up=$(echo "$plan" | jq '[.direct[0].legs[]?.steps[]?.elevationUp // 0] | add // 0')
+    [ "$up" -ge 100 ] \
+      || { echo "bike route $cfrom -> $cto has ${up} m climb; elevation not loaded? $(echo "$plan" | head -c 300)" >&2; exit 1; }
+    note "- smoke: elevation ok, bike $cfrom -> $cto climbs $up m"
+  fi
+
   # Train numbers from prepare.sh. A train between two IDS JMK stops (MOTIS
   # stop ids; default Brno-Zidenice -> Tisnov, line S3) must come back with
   # both names: the line brand in routeShortName and the train number in
@@ -198,7 +226,24 @@ smoke() {
   cleanup; trap - EXIT
 }
 
+# ── 4. Routing comparison (on demand) ────────────────────────────────────────
+# Not part of a build: it asks the paid Mapy.cz API. Starts the image like
+# the smoke test and runs scripts/compare-routing.py on
+# variants/<variant>/routing-cases.json. MAPY_CZ_API_KEY from the
+# environment; without it only MOTIS is asked. Writes work/<variant>/compare/.
+compare() {
+  step "routing comparison"
+  local cases="variants/$VARIANT/routing-cases.json"
+  [ -f "$cases" ] || { echo "no $cases" >&2; exit 2; }
+  local port=${SMOKE_PORT:-18080}
+  start_server
+  python3 scripts/compare-routing.py "$cases" "$WORK/compare" \
+    --motis "http://127.0.0.1:$port" --srtm "$WORK/input/srtm"
+  cleanup; trap - EXIT
+}
+
 case $PHASE in
+  compare)  compare ;;
   download) download ;;
   build)    build ;;
   test)     smoke ;;

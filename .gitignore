@@ -1,3 +1,4 @@
 # Build output: downloaded inputs and summaries. Gigabytes; never committed.
 work/
 work-build.log
+__pycache__/

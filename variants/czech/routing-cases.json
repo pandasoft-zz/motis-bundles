@@ -1,0 +1,18 @@
+[
+  {"name": "Praha: Malostranské nám. -> Pražský hrad", "from": [50.08811, 14.40433], "to": [50.09081, 14.40052], "profiles": ["walking"]},
+  {"name": "Praha: Malostranské nám. -> Petřín", "from": [50.08811, 14.40433], "to": [50.08352, 14.39509], "profiles": ["walking"]},
+  {"name": "Brno: hl. n. -> Špilberk", "from": [49.19067, 16.61326], "to": [49.19450, 16.59935], "profiles": ["walking"]},
+  {"name": "Horní Hanychov -> Ještěd", "from": [50.73887, 15.01669], "to": [50.73277, 14.98392], "profiles": ["walking"]},
+  {"name": "Ovčárna -> Praděd", "from": [50.07057, 17.23958], "to": [50.08324, 17.23087], "profiles": ["walking", "mtb"]},
+  {"name": "Pec pod Sněžkou -> Sněžka", "from": [50.69357, 15.73356], "to": [50.73536, 15.74044], "profiles": ["walking"]},
+  {"name": "Ostravice -> Lysá hora", "from": [49.53812, 18.39318], "to": [49.54598, 18.44727], "profiles": ["walking", "mtb"]},
+  {"name": "Pustevny -> Radhošť", "from": [49.48961, 18.26515], "to": [49.49159, 18.22309], "profiles": ["walking", "mtb"]},
+  {"name": "Pavlov -> Děvín", "from": [48.87437, 16.67102], "to": [48.86948, 16.65038], "profiles": ["walking"]},
+  {"name": "Krasetín -> Kleť", "from": [48.88233, 14.31531], "to": [48.86524, 14.28359], "profiles": ["walking", "mtb"]},
+  {"name": "Brno hl. n. -> Tišnov", "from": [49.19067, 16.61326], "to": [49.34884, 16.42449], "profiles": ["cycling"]},
+  {"name": "Praha Palackého nám. -> Černošice", "from": [50.07296, 14.41475], "to": [49.95700, 14.31931], "profiles": ["cycling"]},
+  {"name": "Olomouc hl. n. -> Litovel", "from": [49.59284, 17.27835], "to": [49.70146, 17.07577], "profiles": ["cycling"]},
+  {"name": "Beroun -> Karlštejn", "from": [49.95725, 14.07392], "to": [49.94010, 14.18743], "profiles": ["cycling"]},
+  {"name": "Boží Dar -> Klínovec", "from": [50.40973, 12.92445], "to": [50.39620, 12.96797], "profiles": ["cycling"]},
+  {"name": "Brno Bystrc přístaviště -> Kraví hora", "from": [49.22834, 16.52204], "to": [49.20341, 16.58381], "profiles": ["cycling"]}
+]

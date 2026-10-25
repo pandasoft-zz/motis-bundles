@@ -11,3 +11,36 @@ jmk.gtfs.zip             https://kordis-jmk.cz/gtfs/gtfs.zip
 pid.gtfs.zip             https://data.pid.cz/PID_GTFS.zip
 czptt.gtfs.zip           https://data.jr.ggu.cz/results/latest/CZPTT_GTFS.zip
 jdf.gtfs.zip             https://raw.githubusercontent.com/0xaa55h/gtfs-processor/refs/heads/gtfs/files/latest.zip
+
+# Elevation (SRTM1, 1 arc-second, ~30 m) from the AWS Terrain Tiles open
+# dataset ("skadi" layout). One tile per 1x1 degree; these cover the OSM
+# extract (lat 48-51, lon 12-18). build.sh unpacks *.gz after the download.
+# MOTIS reads them from street_routing.elevation_data_dir in config.yml.
+srtm/N48E012.hgt.gz      https://s3.amazonaws.com/elevation-tiles-prod/skadi/N48/N48E012.hgt.gz
+srtm/N48E013.hgt.gz      https://s3.amazonaws.com/elevation-tiles-prod/skadi/N48/N48E013.hgt.gz
+srtm/N48E014.hgt.gz      https://s3.amazonaws.com/elevation-tiles-prod/skadi/N48/N48E014.hgt.gz
+srtm/N48E015.hgt.gz      https://s3.amazonaws.com/elevation-tiles-prod/skadi/N48/N48E015.hgt.gz
+srtm/N48E016.hgt.gz      https://s3.amazonaws.com/elevation-tiles-prod/skadi/N48/N48E016.hgt.gz
+srtm/N48E017.hgt.gz      https://s3.amazonaws.com/elevation-tiles-prod/skadi/N48/N48E017.hgt.gz
+srtm/N48E018.hgt.gz      https://s3.amazonaws.com/elevation-tiles-prod/skadi/N48/N48E018.hgt.gz
+srtm/N49E012.hgt.gz      https://s3.amazonaws.com/elevation-tiles-prod/skadi/N49/N49E012.hgt.gz
+srtm/N49E013.hgt.gz      https://s3.amazonaws.com/elevation-tiles-prod/skadi/N49/N49E013.hgt.gz
+srtm/N49E014.hgt.gz      https://s3.amazonaws.com/elevation-tiles-prod/skadi/N49/N49E014.hgt.gz
+srtm/N49E015.hgt.gz      https://s3.amazonaws.com/elevation-tiles-prod/skadi/N49/N49E015.hgt.gz
+srtm/N49E016.hgt.gz      https://s3.amazonaws.com/elevation-tiles-prod/skadi/N49/N49E016.hgt.gz
+srtm/N49E017.hgt.gz      https://s3.amazonaws.com/elevation-tiles-prod/skadi/N49/N49E017.hgt.gz
+srtm/N49E018.hgt.gz      https://s3.amazonaws.com/elevation-tiles-prod/skadi/N49/N49E018.hgt.gz
+srtm/N50E012.hgt.gz      https://s3.amazonaws.com/elevation-tiles-prod/skadi/N50/N50E012.hgt.gz
+srtm/N50E013.hgt.gz      https://s3.amazonaws.com/elevation-tiles-prod/skadi/N50/N50E013.hgt.gz
+srtm/N50E014.hgt.gz      https://s3.amazonaws.com/elevation-tiles-prod/skadi/N50/N50E014.hgt.gz
+srtm/N50E015.hgt.gz      https://s3.amazonaws.com/elevation-tiles-prod/skadi/N50/N50E015.hgt.gz
+srtm/N50E016.hgt.gz      https://s3.amazonaws.com/elevation-tiles-prod/skadi/N50/N50E016.hgt.gz
+srtm/N50E017.hgt.gz      https://s3.amazonaws.com/elevation-tiles-prod/skadi/N50/N50E017.hgt.gz
+srtm/N50E018.hgt.gz      https://s3.amazonaws.com/elevation-tiles-prod/skadi/N50/N50E018.hgt.gz
+srtm/N51E012.hgt.gz      https://s3.amazonaws.com/elevation-tiles-prod/skadi/N51/N51E012.hgt.gz
+srtm/N51E013.hgt.gz      https://s3.amazonaws.com/elevation-tiles-prod/skadi/N51/N51E013.hgt.gz
+srtm/N51E014.hgt.gz      https://s3.amazonaws.com/elevation-tiles-prod/skadi/N51/N51E014.hgt.gz
+srtm/N51E015.hgt.gz      https://s3.amazonaws.com/elevation-tiles-prod/skadi/N51/N51E015.hgt.gz
+srtm/N51E016.hgt.gz      https://s3.amazonaws.com/elevation-tiles-prod/skadi/N51/N51E016.hgt.gz
+srtm/N51E017.hgt.gz      https://s3.amazonaws.com/elevation-tiles-prod/skadi/N51/N51E017.hgt.gz
+srtm/N51E018.hgt.gz      https://s3.amazonaws.com/elevation-tiles-prod/skadi/N51/N51E018.hgt.gz

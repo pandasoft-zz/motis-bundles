@@ -80,6 +80,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # Seconds, before the long steps: the helpers of compare-routing.py.
+      - name: Unit tests
+        run: python3 -m unittest discover -s scripts
+
       - name: Free disk space
         run: |
           df -h / | tail -1
