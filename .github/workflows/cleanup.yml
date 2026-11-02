@@ -33,7 +33,7 @@ permissions:
 
 jobs:
   prune:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     # A failed build pushed nothing; there is nothing new to make room for.
     if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     steps:
