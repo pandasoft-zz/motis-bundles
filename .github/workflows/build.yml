@@ -58,7 +58,7 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     # The czech import is 1m 21s on a 12-thread desktop; on the 4-vCPU runner
     # expect single-digit minutes, plus the download and the image export.
     # An hour is far above anything that is going right and still stops a
